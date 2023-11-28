@@ -293,8 +293,8 @@ class RearrangementResource(Resource):
             return False, {"Error": "Invalid filter field, only 'repertoire_id' is allowed"}
 
         # Validate filter operation
-        if filter_op != 'in':
-            return False, {"Error": "Invalid filter operation, only 'in' is allowed"}
+        if filter_op != 'in' or filter_op != '=':
+            return False, {"Error": "Invalid filter operation, only 'in' or '=' is allowed"}
 
         return True, request_data['filters']['content']['value']
 
