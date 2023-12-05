@@ -3,6 +3,9 @@ from flask_restx import Api
 import logging
 from repertoire import create_repertoire_map, repertoire_ns, rearrangement_ns
 from service import ns as service_ns
+from utils import before_server_loads
+import os
+import shutil
 
 app = Flask(__name__)
 
@@ -23,6 +26,12 @@ api.add_namespace(rearrangement_ns, path='/airr/v1/rearrangement')
 
 
 
+
+
 if __name__ == '__main__':
+    before_server_loads(app.config)
     create_repertoire_map(app.config["STUDIES_PATH"])    
     app.run(debug=app.config['DEBUG'])
+
+
+
