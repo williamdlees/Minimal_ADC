@@ -4,8 +4,6 @@ import logging
 from repertoire import create_repertoire_map, repertoire_ns, rearrangement_ns
 from service import ns as service_ns
 from utils import before_server_loads
-import os
-import shutil
 
 app = Flask(__name__)
 
@@ -23,9 +21,6 @@ api = Api(app, title='Minimal ADC API', version='1.0', description='')
 api.add_namespace(service_ns, path='/airr/v1')
 api.add_namespace(repertoire_ns, path='/airr/v1/repertoire')
 api.add_namespace(rearrangement_ns, path='/airr/v1/rearrangement')
-
-
-
 
 
 if __name__ == '__main__':

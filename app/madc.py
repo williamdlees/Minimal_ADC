@@ -14,5 +14,5 @@ API_INFORMATION = {"version": API_VERSION,
                 }
 
 #Paths
-STUDIES_PATH = r'C:\Users\yaniv\Desktop\work\minimal_adc\Minimal_ADC\studies'
+STUDIES_PATH = r'C:\Users\yaniv\Desktop\work\minimal_adc\studies'
 STUDIES_TO_COPY_PATH = r"C:\Users\yaniv\Desktop\work\to_copy"
