@@ -24,7 +24,7 @@ def create_app():
     try:
         before_server_loads(app.config)
         create_repertoire_map(app.config["STUDIES_PATH"])
-    except Exception as e:
+    except Exception as e: 
         print(e)
     
     return app
@@ -32,7 +32,7 @@ def create_app():
 app = create_app()
 
 if __name__ == '__main__':
-    app.run(debug=app.config['DEBUG'])
+    app.run(debug=app.config['DEBUG'], port=app.config["PORT"])
 
 
 
