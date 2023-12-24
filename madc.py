@@ -1,7 +1,7 @@
 # Configuration settings
 DEBUG = True
 HOST = '127.0.0.1'
-PORT = 5000
+PORT = 4200
 
 
 # API information
@@ -16,5 +16,5 @@ API_INFORMATION = {"version": API_VERSION,
 #Paths
 #STUDIES_PATH = r'C:\Users\yaniv\Desktop\work\minimal_adc\studies'
 #STUDIES_TO_COPY_PATH = r"C:\Users\yaniv\Desktop\work\to_copy"
-STUDIES_PATH = r'/home/bcrlab/malachy7/minimal_adc/containers/madc/studies/'
+STUDIES_PATH = r'/studies/'
 STUDIES_TO_COPY_PATH = r"/misc/work/sequence_data_store/"
