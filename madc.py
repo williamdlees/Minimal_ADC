@@ -1,7 +1,7 @@
 # Configuration settings
 DEBUG = True
 HOST = '127.0.0.1'
-PORT = 4200
+PORT = 5000
 
 
 # API information
