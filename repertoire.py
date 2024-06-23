@@ -4,12 +4,28 @@ import os
 import gzip
 import shutil
 import json
-
+import datetime
 
 repertoire_map = None
 repertoire_ns = Namespace('repertoire', description='Repertoire operation repertoire_ns')
 rearrangement_ns = Namespace('rearrangement', description='Repertoire operation rearrangement_ns')
 
+
+def check_download_limit():
+    current_usage = current_app.config['USAGE']
+    now = datetime.datetime.now()
+    
+    # Reset the usage if the week has passed
+    if now - current_usage['start_date'] > datetime.timedelta(days=7):
+        current_usage['start_date'] = now
+        current_usage['bytes_transferred'] = 0
+    
+    # Check if the file size exceeds the limit
+    if current_usage['bytes_transferred'] > current_app.config['WEEKLY_LIMIT']:
+        return False, "Weekly download limit exceeded"
+    
+    # Update the usage
+    return True, None
 
 
 @repertoire_ns.route('<string:repertoire_id>')
@@ -169,31 +185,40 @@ def create_repertoire_map(studies_path):
 @rearrangement_ns.route('')
 class RearrangementResource(Resource):
     def post(self):
-        if request.content_length > 0:
-            request_data = request.get_json()
-            valid, response = self.validate_request(request_data)
-            
-            if not valid:
-                return response, 400
-            
-            else:
-                if 'facets' in request_data:
-                    rearrangement_response = self.get_rearrangements_count(response)
-                    return {"Info": current_app.config["API_INFORMATION"],"Facet": rearrangement_response}
+        in_limit, message = check_download_limit()
+        current_usage = current_app.config['USAGE']
+        if in_limit:
+            if request.content_length > 0:
+                request_data = request.get_json()
+                valid, response = self.validate_request(request_data)
                 
-                elif 'format' in request_data:
-                    content, is_exist  = self.get_rearrangements_files(response)
-                    if is_exist:
-                        current_app.logger.info(f'sending {response}.tsv')
-                        return Response(content, mimetype='text/tab-separated-values')
-                    else:
-                        return {"Error": "File not found"}, 404
+                if not valid:
+                    return response, 400
                 
                 else:
-                    return {"Error": "Invalid request format"}, 400
-                
+                    if 'facets' in request_data:
+                        rearrangement_response = self.get_rearrangements_count(response)
+                        return {"Info": current_app.config["API_INFORMATION"],"Facet": rearrangement_response}
+                    
+                    elif 'format' in request_data:
+                        content, is_exist  = self.get_rearrangements_files(response)
+                        if is_exist:
+                            current_app.logger.info(f'sending {response[0]}.tsv')
+                            file_size = len(content.encode('utf-8'))
+                            current_usage['bytes_transferred'] += file_size
+                            return Response(content, mimetype='text/tab-separated-values')
+                        else:
+                            return {"Error": "File not found"}, 404
+                    
+                    else:
+                        return {"Error": "Invalid request format"}, 400
+                    
+            else:
+                return {"Error": "Missing filters"}, 404
         else:
-            return {"Error": "Missing filters"}, 404
+            current_app.logger.info(message)
+            return {"Error":  message}, 403
+
 
     def get_rearrangements_count(self, repertoire_ids):
         current_app.logger.info(f'Rearrangement count was reached with {repertoire_ids}')
@@ -218,11 +243,11 @@ class RearrangementResource(Resource):
         current_app.logger.info(f'Rearrangement files was reached with {repertoire_id}')
         #for repertoire_id in repertoire_ids:
         for metadata_path, repertoire_list in repertoire_map.items():
-            if repertoire_id in repertoire_list:
+            if repertoire_id[0] in repertoire_list:
                 # Construct the file path for the .tsv.gz file
-                gz_filepath  = metadata_path.replace('metadata.json', f"{repertoire_id}.tsv.gz")
-                if os.path.exists(gz_filepath ):
-                    with gzip.open(gz_filepath, 'rt') as f:  # 'rt' mode for reading as text
+                filepath  = metadata_path.replace('metadata.json', f"{repertoire_id[0]}.tsv")
+                if os.path.exists(filepath ):
+                    with open(filepath, 'rt') as f:  # 'rt' mode for reading as text
                         content = f.read()
                         return content, True
 
@@ -293,7 +318,7 @@ class RearrangementResource(Resource):
             return False, {"Error": "Invalid filter field, only 'repertoire_id' is allowed"}
 
         # Validate filter operation
-        if filter_op != 'in' or filter_op != '=':
+        if filter_op != 'in' and filter_op != '=':
             return False, {"Error": "Invalid filter operation, only 'in' or '=' is allowed"}
 
         return True, request_data['filters']['content']['value']
