@@ -23,7 +23,5 @@ USAGE= {
 }
 
 #Paths
-STUDIES_PATH = r'C:\Users\yaniv\Desktop\work\minimal_adc\studies'
-STUDIES_TO_COPY_PATH = r"C:\Users\yaniv\Desktop\work\to_copy"
-# STUDIES_PATH = r'/studies/'
-# STUDIES_TO_COPY_PATH = r"/work/sequence_data_store/"
+#STUDIES_PATH = r'C:\Users\yaniv\Desktop\work\minimal_adc\studies'
+STUDIES_PATH = r'/studies/'
