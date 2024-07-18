@@ -247,10 +247,10 @@ class RearrangementResource(Resource):
                         return {"Info": current_app.config["API_INFORMATION"],"Facet": rearrangement_response}
                     
                     elif 'format' in request_data:
-                        content, is_exist = self.get_rearrangements_files(response)
+                        content, file_size, is_exist = self.get_rearrangements_files(response)
                         if is_exist:
                             current_app.logger.info(f'sending {response[0]}.tsv.gz')
-                            file_size = len(content.encode('utf-8'))
+                             
                             current_usage['bytes_transferred'] += file_size
                             update_file_limit()
                             #return Response(content, mimetype='text/tab-separated-values')
@@ -300,14 +300,15 @@ class RearrangementResource(Resource):
                 filepath = metadata_path.replace('metadata.json', f"{repertoire_id[0]}.tsv.gz")
                 if os.path.exists(filepath):
                     with gzip.open(filepath, 'rb') as f:
+                        filesize = os.path.getsize(filepath)
                         content = f.read()
-                        return content, True
+                        return content, filesize, True
 
                 else:
                     current_app.logger.error(f"TSV file for {repertoire_id} not found.")
-                    return {"error": "No TSV files found for the provided repertoire IDs"}, False
+                    return {"error": "No TSV files found for the provided repertoire IDs"}, None, False
                 
-        return {"error": "No TSV files found for the provided repertoire IDs"}, False
+        return {"error": "No TSV files found for the provided repertoire IDs"}, None, False
 
 
     def validate_request(self, request_data):
