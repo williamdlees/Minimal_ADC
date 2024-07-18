@@ -4,7 +4,7 @@ import logging
 from repertoire import create_repertoire_map, repertoire_ns, rearrangement_ns
 from service import ns as service_ns
 from utils import before_server_loads
-
+import json
 
 logging.basicConfig(level=logging.INFO)
 
@@ -30,6 +30,7 @@ def create_app():
     return app
 
 app = create_app()
+
 
 if __name__ == '__main__':
     app.run(debug=app.config['DEBUG'], port=app.config["PORT"])

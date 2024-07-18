@@ -22,6 +22,10 @@ USAGE= {
     'bytes_transferred': 0
 }
 
+USAGE_FILE_PATH=r'/usage.json'
+JUST_UPLOADS_APP=True
+FIRST_LOAD=True
+
 #Paths
 #STUDIES_PATH = r'C:\Users\yaniv\Desktop\work\minimal_adc\studies'
 STUDIES_PATH = r'/studies/'

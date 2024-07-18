@@ -5,27 +5,73 @@ import gzip
 import shutil
 import json
 import datetime
+from json import JSONEncoder
 
 repertoire_map = None
 repertoire_ns = Namespace('repertoire', description='Repertoire operation repertoire_ns')
 rearrangement_ns = Namespace('rearrangement', description='Repertoire operation rearrangement_ns')
 
+class DateTimeEncoder(JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, (datetime.date, datetime.datetime)):
+            return obj.isoformat()
+            
+
+def decode_datetime(dct):
+    for key, value in dct.items():
+        if isinstance(value, str) and value.endswith('Z'):
+            try:
+                dct[key] = datetime.datetime.fromisoformat(value.replace('Z', '+00:00'))
+            except ValueError:
+                pass
+        elif isinstance(value, str):
+            try:
+                dct[key] = datetime.datetime.fromisoformat(value)
+            except ValueError:
+                pass
+    return dct
+
+
+def on_server_loads():
+    if os.path.exists(current_app.config['USAGE_FILE_PATH']):
+        with open(current_app.config['USAGE_FILE_PATH'], 'r') as file:
+            existing_data = json.load(file, object_hook=decode_datetime)
+            current_app.config['USAGE'] = existing_data
+
+def update_file_limit():
+    with open(current_app.config['USAGE_FILE_PATH'], 'w') as file:
+        current_usage = current_app.config['USAGE']
+        json.dump(current_usage, file, indent=4, cls=DateTimeEncoder)
+
 
 def check_download_limit():
-    current_usage = current_app.config['USAGE']
-    now = datetime.datetime.now()
+    if not os.path.exists(current_app.config['USAGE_FILE_PATH']):
+        with open(current_app.config['USAGE_FILE_PATH'], 'w') as file:
+            current_usage = current_app.config['USAGE']
+            json.dump(current_usage, file, indent=4, cls=DateTimeEncoder)
+
+    if current_app.config['FIRST_LOAD']:
+        current_app.config['FIRST_LOAD'] = False
+        on_server_loads()
+
+    with open(current_app.config['USAGE_FILE_PATH'], 'r') as file:
+        existing_data = json.load(file, object_hook=decode_datetime)
+        current_usage = existing_data
+        now = datetime.datetime.now()
+        
+        # Reset the usage if the week has passed
+        if now - current_usage['start_date'] > datetime.timedelta(days=7):
+            current_usage['start_date'] = now
+            current_usage['bytes_transferred'] = 0
+        
+        # Check if the file size exceeds the limit
+        if current_usage['bytes_transferred'] > current_app.config['WEEKLY_LIMIT']:
+            return False, "Weekly download limit exceeded"
+        
+        # Update the usage
+        return True, None
     
-    # Reset the usage if the week has passed
-    if now - current_usage['start_date'] > datetime.timedelta(days=7):
-        current_usage['start_date'] = now
-        current_usage['bytes_transferred'] = 0
-    
-    # Check if the file size exceeds the limit
-    if current_usage['bytes_transferred'] > current_app.config['WEEKLY_LIMIT']:
-        return False, "Weekly download limit exceeded"
-    
-    # Update the usage
-    return True, None
+    return False ,"error"
 
 
 @repertoire_ns.route('<string:repertoire_id>')
@@ -206,6 +252,7 @@ class RearrangementResource(Resource):
                             current_app.logger.info(f'sending {response[0]}.tsv')
                             file_size = len(content.encode('utf-8'))
                             current_usage['bytes_transferred'] += file_size
+                            update_file_limit()
                             return Response(content, mimetype='text/tab-separated-values')
                         else:
                             return {"Error": "File not found"}, 404
@@ -240,6 +287,8 @@ class RearrangementResource(Resource):
 
 
     def get_rearrangements_files(self, repertoire_id):
+        if not isinstance(repertoire_id, list):
+            repertoire_id = [repertoire_id]
         current_app.logger.info(f'Rearrangement files was reached with {repertoire_id}')
         #for repertoire_id in repertoire_ids:
         for metadata_path, repertoire_list in repertoire_map.items():
