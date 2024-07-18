@@ -249,15 +249,11 @@ class RearrangementResource(Resource):
                     elif 'format' in request_data:
                         content, file_size, is_exist = self.get_rearrangements_files(response)
                         if is_exist:
-                            current_app.logger.info(f'sending {response[0]}.tsv.gz')
-                             
+                            current_app.logger.info(f'sending {response}.tsv.gz')
                             current_usage['bytes_transferred'] += file_size
                             update_file_limit()
-                            #return Response(content, mimetype='text/tab-separated-values')
                             response = Response(content, mimetype='application/gzip')
-                            response.headers['Content-Disposition'] = f'attachment; filename="{repertoire_id[0]}.tsv.gz"'
-                            response.headers['Content-Length'] = file_size
-                            return response
+                            return response, 200
                         else:
                             return {"Error": "File not found"}, 404
                     
@@ -298,6 +294,7 @@ class RearrangementResource(Resource):
             if repertoire_id[0] in repertoire_list:
                 # Construct the file path for the .tsv.gz file
                 filepath = metadata_path.replace('metadata.json', f"{repertoire_id[0]}.tsv.gz")
+                print(filepath)
                 if os.path.exists(filepath):
                     with gzip.open(filepath, 'rb') as f:
                         filesize = os.path.getsize(filepath)
