@@ -253,7 +253,7 @@ class RearrangementResource(Resource):
                             current_usage['bytes_transferred'] += file_size
                             update_file_limit()
                             response = Response(content, mimetype='application/gzip')
-                            return response, 200
+                            return response
                         else:
                             return {"Error": "File not found"}, 404
                     
