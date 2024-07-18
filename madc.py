@@ -23,6 +23,7 @@ USAGE= {
 }
 
 USAGE_FILE_PATH=r'/usage.json'
+#USAGE_FILE_PATH=r'C:\Users\yaniv\Desktop\work\minimal_adc\usage.json'
 JUST_UPLOADS_APP=True
 FIRST_LOAD=True
 

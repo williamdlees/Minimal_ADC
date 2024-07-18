@@ -247,13 +247,17 @@ class RearrangementResource(Resource):
                         return {"Info": current_app.config["API_INFORMATION"],"Facet": rearrangement_response}
                     
                     elif 'format' in request_data:
-                        content, is_exist  = self.get_rearrangements_files(response)
+                        content, is_exist = self.get_rearrangements_files(response)
                         if is_exist:
-                            current_app.logger.info(f'sending {response[0]}.tsv')
+                            current_app.logger.info(f'sending {response[0]}.tsv.gz')
                             file_size = len(content.encode('utf-8'))
                             current_usage['bytes_transferred'] += file_size
                             update_file_limit()
-                            return Response(content, mimetype='text/tab-separated-values')
+                            #return Response(content, mimetype='text/tab-separated-values')
+                            response = Response(content, mimetype='application/gzip')
+                            response.headers['Content-Disposition'] = f'attachment; filename="{repertoire_id[0]}.tsv.gz"'
+                            response.headers['Content-Length'] = file_size
+                            return response
                         else:
                             return {"Error": "File not found"}, 404
                     
@@ -290,13 +294,12 @@ class RearrangementResource(Resource):
         if not isinstance(repertoire_id, list):
             repertoire_id = [repertoire_id]
         current_app.logger.info(f'Rearrangement files was reached with {repertoire_id}')
-        #for repertoire_id in repertoire_ids:
         for metadata_path, repertoire_list in repertoire_map.items():
             if repertoire_id[0] in repertoire_list:
                 # Construct the file path for the .tsv.gz file
-                filepath  = metadata_path.replace('metadata.json', f"{repertoire_id[0]}.tsv")
-                if os.path.exists(filepath ):
-                    with open(filepath, 'rt') as f:  # 'rt' mode for reading as text
+                filepath = metadata_path.replace('metadata.json', f"{repertoire_id[0]}.tsv.gz")
+                if os.path.exists(filepath):
+                    with gzip.open(filepath, 'rb') as f:
                         content = f.read()
                         return content, True
 
