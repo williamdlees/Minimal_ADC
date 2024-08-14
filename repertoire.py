@@ -1,5 +1,5 @@
 from flask_restx import Namespace, Resource
-from flask import request, current_app, send_file, make_response, Response
+from flask import request, current_app, send_file, make_response, Response, jsonify
 import os
 import gzip
 import shutil
@@ -74,10 +74,11 @@ def check_download_limit():
     return False ,"error"
 
 
-@repertoire_ns.route('<string:repertoire_id>')
+@repertoire_ns.route('/<string:repertoire_id>')
 class RepertoireResource(Resource):
     def get(self, repertoire_id):
         current_app.logger.info(f'Repertoire information for {repertoire_id} was reached')
+        request_data = request.get_json()
         repertoire_info = None
         metadata_path = self.find_repertoire_path_by_id(repertoire_id)
         if metadata_path is not None:
@@ -87,9 +88,14 @@ class RepertoireResource(Resource):
         else:
             current_app.logger.info(f'{repertoire_id} not found')
             repertoire_info = "Not Found"
+        try:
+            repertoire_info = self.get_metadata(repertoire_info, request_data)  
 
-        return {"Info" : current_app.config["API_INFORMATION"] ,
-                "Repertoire": repertoire_info}
+            return {"Info" : current_app.config["API_INFORMATION"] ,
+                    "Repertoire": repertoire_info}
+        
+        except Exception as e:
+            return {"error": str(e)}, 400
     
     #finding the repertoire metadata path by the repertoire id
     def find_repertoire_path_by_id(self, repertoire_id):
@@ -101,7 +107,15 @@ class RepertoireResource(Resource):
                     break
         
         return path
-        
+    
+    def get_metadata(self,repertoire_info, request_data):
+        request_data = request.json
+        fields = request_data.get("fields", [])
+        if len(fields) > 0:
+            validate_fields(repertoire_info, fields)
+            repertoire_info = get_filtered_metadata(repertoire_info, fields)
+        return repertoire_info
+
     
     #return the repertoire information by the metadata path
     def get_repertoire_information(self, metadata_path, repertoire_id):
@@ -130,13 +144,29 @@ class RepertoireList(Resource):
 
             study_id = response
             study_repertoires = self.filter_repertoires_by_study(study_id)
-            return {"Info": current_app.config["API_INFORMATION"],
-                    "Repertoire": study_repertoires}
+            try:
+                for i in range(len(study_repertoires)):
+                    study_repertoires[i] = (self.get_metadata(study_repertoires[i],request_data))
+
+                return {"Info": current_app.config["API_INFORMATION"],
+                        "Repertoire": study_repertoires}
+
+            except Exception as e:
+                return {"error": str(e)}, 400
+
 
         all_repertoires = self.get_all_repertoires()
         return {"Info": current_app.config["API_INFORMATION"],
                 "Repertoire": all_repertoires}
 
+
+    def get_metadata(self,repertoire_info, request_data):
+        request_data = request_data.get('filters').get('content')
+        fields = request_data.get("field", [])
+        if len(fields) > 0:
+            validate_fields(repertoire_info, fields)
+            repertoire_info = get_filtered_metadata(repertoire_info, fields)
+        return repertoire_info
 
     def validate_repertoire_request(self, request_data):
         expected_keys = ['filters']
@@ -170,9 +200,6 @@ class RepertoireList(Resource):
             if content not in expected_content:
                 return False, {"Error": f"Unexpected content '{content}' in request"}
             
-        if filter_content['field'] != 'study.study_id':
-            return False, {"Error": "Invalid filter field, only 'study.study_id' is allowed"}
-
         if filter_op != '=':
             return False, {"Error": "Invalid filter operation, only '=' is allowed"}
 
@@ -225,6 +252,61 @@ def create_repertoire_map(studies_path):
             for repertoire in data["Repertoire"]:
                 repertoire_list.append(repertoire["repertoire_id"])
             repertoire_map[metadata_path] = repertoire_list
+
+
+
+def validate_fields(metadata, fields):
+    missing_fields = []
+    
+    def check_recursive(data, field_path):
+        key = field_path[0]
+        if isinstance(data, dict):
+            if key not in data:
+                missing_fields.append('.'.join(field_path))
+            elif len(field_path) > 1:
+                check_recursive(data[key], field_path[1:])
+        elif isinstance(data, list):
+            for item in data:
+                check_recursive(item, field_path)
+    
+    for field in fields:
+        field_path = field.split('.')
+        check_recursive(metadata, field_path)
+    
+    if missing_fields:
+        raise Exception(f"incorrect fields - {str(missing_fields)}")
+
+def filter_dict(data, fields):
+    if isinstance(data, dict):
+        return {key: filter_dict(value, fields) for key, value in data.items() if any(f.startswith(key) for f in fields)}
+    elif isinstance(data, list):
+        return [filter_dict(item, fields) for item in data]
+    else:
+        return data
+
+def get_filtered_metadata(metadata, field_list):
+    # Split fields into parts to handle nested structures
+    fields_split = [field.split('.') for field in field_list]
+    
+    def filter_recursive(data, fields):
+        if isinstance(data, dict):
+            filtered = {}
+            for key, value in data.items():
+                # Get relevant sub-fields
+                sub_fields = [f[1:] for f in fields if f[0] == key]
+                if sub_fields:
+                    filtered[key] = filter_recursive(value, sub_fields)
+                elif any(f[0] == key for f in fields):
+                    filtered[key] = value
+            return filtered
+        
+        elif isinstance(data, list):
+            return [filter_recursive(item, fields) for item in data]
+
+        else:
+            return data
+    
+    return filter_recursive(metadata, fields_split)
 
 
 
