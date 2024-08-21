@@ -3,7 +3,7 @@ import os
 import argparse
 
 
-SERVER_URL = 'http://127.0.0.1:5000'
+SERVER_URL = 'https://madc.vdjbase.org'
 
 def download_study(study_name):
     url =  SERVER_URL + '/airr/v1/repertoire'
@@ -52,9 +52,9 @@ def download_study(study_name):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="")
-    parser.add_argument('project_name', type=str, help="The name of your project")
+    # parser = argparse.ArgumentParser(description="")
+    # parser.add_argument('project_name', type=str, help="The name of your project")
 
-    args = parser.parse_args()
+    # args = parser.parse_args()
 
-    download_study(args.project_name)
+    download_study("PRJEB26509_IGK")
