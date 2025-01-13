@@ -203,10 +203,10 @@ class RepertoireList(Resource):
 
     # finding the right study and returning its repertoires
     def filter_repertoires_by_study(self, study_id):
-        study_repertoires = None
+        study_repertoires = []
         for metadata_path, repertoire_list in repertoire_map.items():
             if study_id is None or study_id in metadata_path:
-                study_repertoires = self.get_all_repertoires_by_study_id(metadata_path)
+                study_repertoires.extend(self.get_all_repertoires_by_study_id(metadata_path))
         
         return study_repertoires
 
