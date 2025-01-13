@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.INFO)
 
 def create_app():
     app = Flask(__name__)
-    app.config.from_pyfile('madc.py') # Load configuration from a file
+    app.config.from_pyfile('config.py') # Load configuration from a file
     app.logger.info('Starting the application...')
 
     # Create an API instance and bind it to the Flask application

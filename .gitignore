@@ -4,4 +4,5 @@ tar/
 /venv
 .vscode/launch.json
 usage.json
+config.py
 __pycache__
