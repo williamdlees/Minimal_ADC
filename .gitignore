@@ -6,3 +6,4 @@ tar/
 usage.json
 config.py
 __pycache__
+*.gz

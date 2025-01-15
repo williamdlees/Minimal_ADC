@@ -1,0 +1,11 @@
+{
+	"filters": {
+		"op": "=",
+		"content": 
+		{
+			"field": "study_id", 
+			"value": "PRJEB26509_IGH"
+		}
+	}, 
+	"fields": ["repertoire_id","subject.species.id", "subject.subject_id", "sample.pcr_target.pcr_target_locus"]
+}

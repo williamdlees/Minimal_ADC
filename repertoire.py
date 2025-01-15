@@ -1,10 +1,11 @@
 from flask_restx import Namespace, Resource
-from flask import request, current_app, Response
+from flask import request, current_app, Response, send_file
 import os
 import gzip
 import json
 import datetime
 from json import JSONEncoder
+from dataclasses import dataclass
 
 repertoire_map = None
 repertoire_ns = Namespace('repertoire', description='Repertoire operation repertoire_ns')
@@ -32,47 +33,49 @@ def decode_datetime(dct):
     return dct
 
 
-def on_server_loads():
-    if os.path.exists(current_app.config['USAGE_FILE_PATH']):
-        with open(current_app.config['USAGE_FILE_PATH'], 'r') as file:
-            existing_data = json.load(file, object_hook=decode_datetime)
-            current_app.config['USAGE'] = existing_data
-
-
-def update_file_limit():
-    with open(current_app.config['USAGE_FILE_PATH'], 'w') as file:
-        current_usage = current_app.config['USAGE']
-        json.dump(current_usage, file, indent=4, cls=DateTimeEncoder)
+# check whether the download limit recorded in usage.json has been exceeded
+# if usage.json does not exist, create it
+# if usage.json exists and the a week has passed since its creation, reset the usage to 0
 
 
 def check_download_limit():
     if not os.path.exists(current_app.config['USAGE_FILE_PATH']):
         with open(current_app.config['USAGE_FILE_PATH'], 'w') as file:
-            current_usage = current_app.config['USAGE']
+            current_usage = {'timestamp': datetime.datetime.now(), 'usage': 0}
             json.dump(current_usage, file, indent=4, cls=DateTimeEncoder)
 
-    if current_app.config['FIRST_LOAD']:
-        current_app.config['FIRST_LOAD'] = False
-        on_server_loads()
-
     with open(current_app.config['USAGE_FILE_PATH'], 'r') as file:
-        existing_data = json.load(file, object_hook=decode_datetime)
-        current_usage = existing_data
+        current_usage = json.load(file, object_hook=decode_datetime)
         now = datetime.datetime.now()
 
         # Reset the usage if the week has passed
-        if now - current_usage['start_date'] > datetime.timedelta(days=7):
-            current_usage['start_date'] = now
-            current_usage['bytes_transferred'] = 0
+        if now - current_usage['timestamp'] > datetime.timedelta(days=7):
+            current_usage = {'timestamp': datetime.datetime.now(), 'usage': 0}
+            with open(current_app.config['USAGE_FILE_PATH'], 'w') as file:
+                json.dump(current_usage, file, indent=4, cls=DateTimeEncoder)
 
         # Check if the file size exceeds the limit
-        if current_usage['bytes_transferred'] > current_app.config['WEEKLY_LIMIT']:
-            return False, "Weekly download limit exceeded"
+        if current_usage['usage'] > current_app.config['WEEKLY_LIMIT']:
+            return False, f"Weekly download limit exceeded (the limit resets in {7 - (now - current_usage['timestamp']).days} days)"
 
         # Update the usage
         return True, None
 
     return False, "error"
+
+# update the amount of bytes transferred to take account of the current file size
+# this is called immediately after check_download_limit so we do not need to check for a reset
+
+
+def update_bytes_transferred(file_size):
+    with open(current_app.config['USAGE_FILE_PATH'], 'r') as file:
+        current_usage = json.load(file, object_hook=decode_datetime)
+    
+    current_usage['usage'] += file_size
+
+    with open(current_app.config['USAGE_FILE_PATH'], 'w') as file:
+        json.dump(current_usage, file, indent=4, cls=DateTimeEncoder)
+
 
 
 @repertoire_ns.route('/<string:repertoire_id>')
@@ -308,7 +311,6 @@ def get_filtered_metadata(metadata, field_list):
 class RearrangementResource(Resource):
     def post(self):
         in_limit, message = check_download_limit()
-        current_usage = current_app.config['USAGE']
         if in_limit:
             if request.content_length > 0:
                 request_data = request.get_json()
@@ -323,13 +325,15 @@ class RearrangementResource(Resource):
                         return {"Info": current_app.config["API_INFORMATION"], "Facet": rearrangement_response}
 
                     elif 'format' in request_data:
-                        content, file_size, is_exist = self.get_rearrangements_files(response)
-                        if is_exist:
-                            current_app.logger.info(f'sending {response}.tsv.gz')
-                            current_usage['bytes_transferred'] += file_size
-                            update_file_limit()
-                            response = Response(content, mimetype='application/gzip')
-                            return response
+                        filepath = self.get_rearrangements_file(response)
+                        if filepath:
+                            update_bytes_transferred(os.path.getsize(filepath))
+                            study_id = os.path.split(filepath)[0]
+                            study_id = os.path.split(study_id)[1]
+                            transfer_file_name = study_id + '_' + os.path.basename(filepath)
+                            current_app.logger.info(f'sending {transfer_file_name}')
+
+                            return send_file(filepath, as_attachment=True, download_name=transfer_file_name, mimetype='application/gzip')
                         else:
                             return {"Error": "File not found"}, 404
                         
@@ -340,7 +344,7 @@ class RearrangementResource(Resource):
                 return {"Error": "Missing filters"}, 404
         else:
             current_app.logger.info(message)
-            return {"Error":  message}, 403
+            return message, 503
 
     def get_rearrangements_count(self, repertoire_ids):
         current_app.logger.info(f'Rearrangement count was reached with {repertoire_ids}')
@@ -360,26 +364,22 @@ class RearrangementResource(Resource):
                                 )
         return facet_list
 
-    def get_rearrangements_files(self, repertoire_id):
-        if not isinstance(repertoire_id, list):
-            repertoire_id = [repertoire_id]
+    def get_rearrangements_file(self, repertoire_id):
+        if isinstance(repertoire_id, list):
+            repertoire_id = repertoire_id[0]
         current_app.logger.info(f'Rearrangement files was reached with {repertoire_id}')
         for metadata_path, repertoire_list in repertoire_map.items():
-            if repertoire_id[0] in repertoire_list:
+            if repertoire_id in repertoire_list:
                 # Construct the file path for the .tsv.gz file
-                filepath = metadata_path.replace('metadata.json', f"{repertoire_id[0]}.tsv.gz")
+                filepath = metadata_path.replace('metadata.json', f"{repertoire_id}.tsv.gz")
                 print(filepath)
-                if os.path.exists(filepath):
-                    with gzip.open(filepath, 'rb') as f:
-                        filesize = os.path.getsize(filepath)
-                        content = f.read()
-                        return content, filesize, True
+                return filepath
 
-                else:
-                    current_app.logger.error(f"TSV file for {repertoire_id} not found.")
-                    return {"error": "No TSV files found for the provided repertoire IDs"}, None, False
+            else:
+                return None
 
-        return {"error": "No TSV files found for the provided repertoire IDs"}, None, False
+        current_app.logger.error("No metadata files found in studies database.")        
+        return None
 
     def validate_request(self, request_data):
         facets_in_request = True
@@ -445,3 +445,25 @@ class RearrangementResource(Resource):
             return False, {"Error": "Invalid filter operation, only 'in' or '=' is allowed"}
 
         return True, request_data['filters']['content']['value']
+
+
+@rearrangement_ns.route('/<string:repertoire_id>')
+class RearrangementDownload(Resource):
+    def get(self, repertoire_id):
+        in_limit, message = check_download_limit()
+        if in_limit:
+            filepath = RearrangementResource.get_rearrangements_file(self, repertoire_id)
+            if filepath:
+                update_bytes_transferred(os.path.getsize(filepath))
+                study_id = os.path.split(filepath)[0]
+                study_id = os.path.split(study_id)[1]
+                transfer_file_name = study_id + '_' + os.path.basename(filepath)
+                current_app.logger.info(f'sending {transfer_file_name}')
+
+                return send_file(filepath, as_attachment=True, download_name=transfer_file_name, mimetype='application/gzip')
+            else:
+                return {"Error": "File not found"}, 404
+        else:
+            current_app.logger.info(message)
+            return message, 503
+

@@ -2,7 +2,7 @@ import requests
 import os
 
 
-SERVER_URL = 'http://127.0.0.1:5000'
+SERVER_URL = 'https://madc.vdjbase.org'
 
 
 def download_study(study_name):

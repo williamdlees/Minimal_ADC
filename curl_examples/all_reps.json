@@ -1,0 +1,3 @@
+{
+	"fields": ["repertoire_id","subject.species.id", "subject.subject_id", "sample.pcr_target.pcr_target_locus"]
+}

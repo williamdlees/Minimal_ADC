@@ -1,0 +1,8 @@
+HTTP/1.1 503 SERVICE UNAVAILABLE
+Server: Werkzeug/2.3.8 Python/3.11.11
+Date: Wed, 15 Jan 2025 10:17:44 GMT
+Content-Type: application/json
+Content-Length: 62
+Connection: close
+
+"Weekly download limit exceeded (the limit resets in 7 days)"
