@@ -238,6 +238,7 @@ class RepertoireList(Resource):
 def create_repertoire_map(studies_path):
     global repertoire_map
     print('Creating repertoire map')
+    repertoires = []
     repertoire_map = {}
     studies_list = [study for study in os.listdir(studies_path)]
     for study in studies_list:
@@ -247,6 +248,10 @@ def create_repertoire_map(studies_path):
             data = json.load(file)
             repertoire_list = []
             for repertoire in data["Repertoire"]:
+                if repertoire["repertoire_id"] in repertoires:
+                    current_app.logger.error(f"Duplicate repertoire_id found: {repertoire['repertoire_id']}")
+                else:
+                    repertoires.append(repertoire["repertoire_id"])
                 repertoire_list.append(repertoire["repertoire_id"])
             repertoire_map[metadata_path] = repertoire_list
 
@@ -375,8 +380,7 @@ class RearrangementResource(Resource):
                 print(filepath)
                 return filepath
 
-            else:
-                return None
+        return None
 
         current_app.logger.error("No metadata files found in studies database.")        
         return None
