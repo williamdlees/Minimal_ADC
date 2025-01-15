@@ -238,7 +238,7 @@ class RepertoireList(Resource):
 def create_repertoire_map(studies_path):
     global repertoire_map
     print('Creating repertoire map')
-    repertoires = []
+    repertoire_log = []
     repertoire_map = {}
     studies_list = [study for study in os.listdir(studies_path)]
     for study in studies_list:
@@ -248,10 +248,11 @@ def create_repertoire_map(studies_path):
             data = json.load(file)
             repertoire_list = []
             for repertoire in data["Repertoire"]:
-                if repertoire["repertoire_id"] in repertoires:
-                    print(f"Duplicate repertoire_id found: {repertoire['repertoire_id']}")
+                for rep, met in repertoire_log:
+                    if rep == repertoire["repertoire_id"]:
+                        print(f"*** Duplicate repertoire_id found: {repertoire['repertoire_id']} is in {met} and {metadata_path}")
                 else:
-                    repertoires.append(repertoire["repertoire_id"])
+                    repertoire_log.append((repertoire["repertoire_id"], metadata_path))
                 repertoire_list.append(repertoire["repertoire_id"])
             repertoire_map[metadata_path] = repertoire_list
 
