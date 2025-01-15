@@ -249,7 +249,7 @@ def create_repertoire_map(studies_path):
             repertoire_list = []
             for repertoire in data["Repertoire"]:
                 if repertoire["repertoire_id"] in repertoires:
-                    current_app.logger.error(f"Duplicate repertoire_id found: {repertoire['repertoire_id']}")
+                    print(f"Duplicate repertoire_id found: {repertoire['repertoire_id']}")
                 else:
                     repertoires.append(repertoire["repertoire_id"])
                 repertoire_list.append(repertoire["repertoire_id"])
