@@ -253,10 +253,14 @@ def create_repertoire_map(studies_path):
                     if rep == repertoire["repertoire_id"]:
                         print(f"*** Duplicate repertoire_id found: {repertoire['repertoire_id']} is in {met} and {metadata_path}")
                 else:
-                    repertoire_log.append((repertoire["repertoire_id"], metadata_path))
+                    file_path = metadata_path.replace('metadata.json', f"{repertoire['repertoire_id']}.tsv.gz")
+                    if os.path.exists(file_path):
+                        repertoire_log.append((repertoire["repertoire_id"], metadata_path))
+                    else:
+                        print(f"*** Repertoire file not found: {repertoire['repertoire_id']}: {file_path}")
                 repertoire_list.append(repertoire["repertoire_id"])
             repertoire_map[metadata_path] = repertoire_list
-            
+
     print(f'Created repertoire map with {len(repertoire_map)} metadata files and {len(repertoire_log)} repertoires')
 
 
