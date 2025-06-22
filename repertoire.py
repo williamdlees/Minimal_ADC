@@ -256,6 +256,8 @@ def create_repertoire_map(studies_path):
                     repertoire_log.append((repertoire["repertoire_id"], metadata_path))
                 repertoire_list.append(repertoire["repertoire_id"])
             repertoire_map[metadata_path] = repertoire_list
+            
+    print(f'Created repertoire map with {len(repertoire_map)} metadata files and {len(repertoire_log)} repertoires')
 
 
 def validate_fields(metadata, fields):
