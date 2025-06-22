@@ -242,6 +242,7 @@ def create_repertoire_map(studies_path):
     repertoire_map = {}
     studies_list = [study for study in os.listdir(studies_path)]
     for study in studies_list:
+        print(f'Processing study: {study}')
         study_path = os.path.join(studies_path, study)
         metadata_path = os.path.join(study_path, 'metadata.json')
         with open(metadata_path, 'r') as file:
