@@ -135,7 +135,7 @@ class RepertoireResource(Resource):
 class RepertoireList(Resource):
     def post(self):
         current_app.logger.info('Repertoire list was reached')
-        if request.content_length > 0:
+        if request.content_length and request.content_length > 0:
             request_data = request.get_json()
             valid, response = self.validate_repertoire_request(request_data)
             if not valid:
