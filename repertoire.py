@@ -1,15 +1,47 @@
-from flask_restx import Namespace, Resource
-from flask import request, current_app, Response, send_file
+from flask_restx import Namespace, Resource, fields
+from flask import request, current_app, send_file
 import os
-import gzip
 import json
 import datetime
 from json import JSONEncoder
-from dataclasses import dataclass
 
 repertoire_map = None
 repertoire_ns = Namespace('repertoire', description='Repertoire operation repertoire_ns')
 rearrangement_ns = Namespace('rearrangement', description='Repertoire operation rearrangement_ns')
+
+# Define models for Swagger documentation
+content_model = repertoire_ns.model('Content', {
+    'field': fields.String(required=True, description='Filter field name, only "study_id" is supported', enum=['study_id']),
+    'value': fields.String(required=True, description='Value to filter by', example="PRJEB26509_IGH")
+})
+
+filters_model = repertoire_ns.model('Filters', {
+    'op': fields.String(required=True, description='Filter operation, only "=" is supported', enum=['=']),
+    'content': fields.Nested(content_model, required=True)
+})
+
+repertoire_query_model = repertoire_ns.model('RepertoireQuery', {
+    'filters': fields.Nested(filters_model),
+    'fields': fields.List(fields.String,
+                          description='List of fields to include in the response',
+                          example=["repertoire_id", "subject.species.id", "subject.subject_id", "sample.pcr_target.pcr_target_locus"])
+})
+
+# Define models for rearrangement
+rearrangement_content_model = rearrangement_ns.model('RearrangementContent', {
+    'field': fields.String(required=True, description='Filter field name, only "repertoire_id" is supported', enum=['repertoire_id']),
+    'value': fields.Raw(required=True, description='Value to filter by, can be a string or array of strings', example=["100_IGH"])
+})
+
+rearrangement_filters_model = rearrangement_ns.model('RearrangementFilters', {
+    'op': fields.String(required=True, description='Filter operation', enum=['in', '=']),
+    'content': fields.Nested(rearrangement_content_model, required=True)
+})
+
+rearrangement_query_model = rearrangement_ns.model('RearrangementQuery', {
+    'filters': fields.Nested(rearrangement_filters_model, required=True),
+    'format': fields.String(description='Response format, only "tsv" is supported', enum=['tsv'])
+})
 
 
 class DateTimeEncoder(JSONEncoder):
@@ -77,9 +109,12 @@ def update_bytes_transferred(file_size):
         json.dump(current_usage, file, indent=4, cls=DateTimeEncoder)
 
 
-
 @repertoire_ns.route('/<string:repertoire_id>')
+@repertoire_ns.param('repertoire_id', 'The repertoire identifier')
 class RepertoireResource(Resource):
+    @repertoire_ns.doc(description='Get information about a specific repertoire')
+    @repertoire_ns.response(200, 'Success')
+    @repertoire_ns.response(400, 'Error retrieving repertoire information')
     def get(self, repertoire_id):
         current_app.logger.info(f'Repertoire information for {repertoire_id} was reached')
         repertoire_info = []
@@ -133,6 +168,10 @@ class RepertoireResource(Resource):
 
 @repertoire_ns.route('')
 class RepertoireList(Resource):
+    @repertoire_ns.doc(description='Retrieve repertoire list based on optional filters')
+    @repertoire_ns.response(200, 'Success')
+    @repertoire_ns.response(400, 'Validation Error')
+    @repertoire_ns.expect(repertoire_query_model, validate=False)
     def post(self):
         current_app.logger.info('Repertoire list was reached')
         if request.content_length and request.content_length > 0:
@@ -322,6 +361,12 @@ def get_filtered_metadata(metadata, field_list):
 
 @rearrangement_ns.route('')
 class RearrangementResource(Resource):
+    @rearrangement_ns.doc(description='Download rearrangement data for specific repertoire')
+    @rearrangement_ns.response(200, 'Success')
+    @rearrangement_ns.response(400, 'Validation Error')
+    @rearrangement_ns.response(404, 'File not found')
+    @rearrangement_ns.response(503, 'Download limit exceeded')
+    @rearrangement_ns.expect(rearrangement_query_model, validate=False)
     def post(self):
         in_limit, message = check_download_limit()
         if in_limit:
@@ -338,8 +383,11 @@ class RearrangementResource(Resource):
                         return {"Info": current_app.config["API_INFORMATION"], "Facet": rearrangement_response}
 
                     elif 'format' in request_data:
+                        if len(response) != 1:
+                            return {"Error": "Exactly one repertoire id must be specified"}, 400
+                        
                         filepath = self.get_rearrangements_file(response)
-                        if filepath:
+                        if filepath:                         
                             update_bytes_transferred(os.path.getsize(filepath))
                             study_id = os.path.split(filepath)[0]
                             study_id = os.path.split(study_id)[1]
@@ -372,7 +420,7 @@ class RearrangementResource(Resource):
                                 facet_list.append(
                                     {
                                         "repertoire_id": repertoire,
-                                        "count": int(file_repertoire["rearrangements"])
+                                        "count": 0
                                     }
                                 )
         return facet_list
@@ -390,7 +438,7 @@ class RearrangementResource(Resource):
 
         return None
 
-        current_app.logger.error("No metadata files found in studies database.")        
+        current_app.logger.error("No metadata files found in studies database.")
         return None
 
     def validate_request(self, request_data):
@@ -460,7 +508,13 @@ class RearrangementResource(Resource):
 
 
 @rearrangement_ns.route('/<string:repertoire_id>')
+@rearrangement_ns.param('repertoire_id', 'The repertoire identifier')
 class RearrangementDownload(Resource):
+    @rearrangement_ns.doc(description='Download rearrangement data for a specific repertoire')
+    @rearrangement_ns.response(200, 'Success - Returns gzipped TSV file')
+    @rearrangement_ns.response(404, 'File not found')
+    @rearrangement_ns.response(503, 'Download limit exceeded')
+    @rearrangement_ns.produces(['application/gzip'])
     def get(self, repertoire_id):
         in_limit, message = check_download_limit()
         if in_limit:
