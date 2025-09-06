@@ -127,7 +127,9 @@ class RepertoireResource(Resource):
             current_app.logger.info(f'{repertoire_id} not found')
             repertoire_info = "Not Found"
         try:
-            repertoire_info = self.get_metadata(repertoire_info, {})
+            x = self.get_metadata(repertoire_info, {})
+            repertoire_info = list()
+            repertoire_info.append(x)
 
             return {"Info": current_app.config["API_INFORMATION"],
                     "Repertoire": repertoire_info}
@@ -190,7 +192,7 @@ class RepertoireList(Resource):
                         "Repertoire": study_repertoires}
 
             except Exception as e:
-                return {"error": str(e)}, 400
+                return json.encode({"error": str(e)}), 400
 
         all_repertoires = self.get_all_repertoires()
         return {"Info": current_app.config["API_INFORMATION"],
